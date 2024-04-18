@@ -786,7 +786,7 @@ class Corr:
             raise Exception('Unknown variant.')
 
     def fit(self, function, fitrange=None, silent=False, **kwargs):
-        r'''Fits function to the data
+        """Fit function to the data.
 
         Parameters
         ----------
@@ -799,7 +799,7 @@ class Corr:
             If not specified, self.prange or all timeslices are used.
         silent : bool
             Decides whether output is printed to the standard output.
-        '''
+        """
         if self.N != 1:
             raise Exception("Correlator must be projected before fitting")
 
@@ -868,15 +868,17 @@ class Corr:
         self.prange = prange
         return
 
-    def show(self, x_range=None, comp=None, y_range=None, logscale=False, plateau=None, fit_res=None, fit_key=None, ylabel=None, save=None, auto_gamma=False, hide_sigma=None, references=None, title=None):
-        """Plots the correlator using the tag of the correlator as label if available.
+    def show(self, x_range=None, comp=None, y_range=None, logscale=False,
+             plateau=None, fit_res=None, fit_key=None, ylabel=None, save=None,
+             auto_gamma=False, hide_sigma=None, references=None, title=None):
+        """Plot the correlator using its tag as label if available.
 
         Parameters
         ----------
         x_range : list
-            list of two values, determining the range of the x-axis e.g. [4, 8].
-        comp : Corr or list of Corr
-            Correlator or list of correlators which are plotted for comparison.
+            Range of the x-axis. E.g. [4, 8].
+        comp : (list of) Corr
+            Correlator or list of correlators that are plotted for comparison.
             The tags of these correlators are used as labels if available.
         logscale : bool
             Sets y-axis to logscale.
@@ -885,19 +887,28 @@ class Corr:
         fit_res : Fit_result
             Fit_result object to be visualized.
         fit_key : str
-            Key for the fit function in Fit_result.fit_function (for combined fits).
+            Key for the fit function in Fit_result.fit_function
+            (for combined fits).
         ylabel : str
             Label for the y-axis.
         save : str
             path to file in which the figure should be saved.
         auto_gamma : bool
-            Apply the gamma method with standard parameters to all correlators and plateau values before plotting.
+            Apply the gamma method with standard parameters to all correlators
+            and plateau values before plotting.
         hide_sigma : float
-            Hides data points from the first value on which is consistent with zero within 'hide_sigma' standard errors.
+            Hides data points from the first value on which is consistent with
+            zero within 'hide_sigma' standard errors.
         references : list
-            List of floating point values that are displayed as horizontal lines for reference.
+            List of floating point values that are displayed as horizontal
+            lines for reference.
         title : string
             Optional title of the figure.
+
+        Returns
+        -------
+        None
+
         """
         if self.N != 1:
             raise Exception("Correlator must be projected before plotting")
@@ -947,8 +958,14 @@ class Corr:
             if isinstance(plateau, Obs):
                 if auto_gamma:
                     plateau.gamma_method()
-                ax1.axhline(y=plateau.value, linewidth=2, color=plt.rcParams['text.color'], alpha=0.6, marker=',', ls='--', label=str(plateau))
-                ax1.axhspan(plateau.value - plateau.dvalue, plateau.value + plateau.dvalue, alpha=0.25, color=plt.rcParams['text.color'], ls='-')
+                ax1.axhline(
+                    y=plateau.value, color=plt.rcParams['text.color'],
+                    alpha=0.6, marker=',', ls='--',
+                    label=plateau.tag if plateau.tag else str(plateau))
+                ax1.axhspan(
+                    plateau.value - plateau.dvalue,
+                    plateau.value + plateau.dvalue,
+                    alpha=0.25, color=plt.rcParams['text.color'], ls='-')
             else:
                 raise Exception("'plateau' must be an Obs")
 
@@ -987,11 +1004,13 @@ class Corr:
 
         plt.draw()
 
-        if save:
+        if save is not None:
             if isinstance(save, str):
-                fig.savefig(save, bbox_inches='tight')
+                fig.savefig(save, bbox_inches="tight")
             else:
                 raise Exception("'save' has to be a string.")
+        plt.close()
+
 
     def spaghetti_plot(self, logscale=True):
         """Produces a spaghetti plot of the correlator suited to monitor exceptional configurations.

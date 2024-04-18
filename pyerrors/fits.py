@@ -430,13 +430,17 @@ def least_squares(x, y, func, priors=None, silent=False, **kwargs):
         output.t2_p_value = 1 - scipy.stats.f.cdf((n_cov - output.dof) / (output.dof * (n_cov - 1)) * output.chisquare,
                                                   output.dof, n_cov - output.dof)
 
-    if kwargs.get('resplot') is True:
+    if "resplot" in kwargs:
         for key in key_ls:
-            residual_plot(xd[key], yd[key], funcd[key], result, title=key)
+            residual_plot(
+                xd[key], yd[key], funcd[key], result, title=key,
+                **kwargs["resplot"])
 
-    if kwargs.get('qqplot') is True:
+    if "qqplot" in kwargs:
         for key in key_ls:
-            qqplot(xd[key], yd[key], funcd[key], result, title=key)
+            qqplot(
+                xd[key], yd[key], funcd[key], result, title=key,
+                **kwargs["qqplot"])
 
     return output
 
@@ -676,61 +680,111 @@ def fit_lin(x, y, **kwargs):
         raise TypeError('Unsupported types for x')
 
 
-def qqplot(x, o_y, func, p, title=""):
-    """Generates a quantile-quantile plot of the fit result which can be used to
-       check if the residuals of the fit are gaussian distributed.
+def qqplot(x, o_y, func, p, title="", save=None):
+    """
+    Generate a quantile-quantile plot of the fit result.
+
+    Use it to check if the residuals are gaussian distributed.
 
     Returns
     -------
     None
-    """
 
+    """
+    # Compute the residuals.
     residuals = []
     for i_x, i_y in zip(x, o_y):
         residuals.append((i_y - func(p, i_x)) / i_y.dvalue)
     residuals = sorted(residuals)
     my_y = [o.value for o in residuals]
+
+    # Calculate quantiles for a probability plot.
     probplot = scipy.stats.probplot(my_y)
     my_x = probplot[0][0]
-    plt.figure(figsize=(8, 8 / 1.618))
+
+    fig = plt.figure()
     plt.errorbar(my_x, my_y, fmt='o')
     fit_start = my_x[0]
     fit_stop = my_x[-1]
     samples = np.arange(fit_start, fit_stop, 0.01)
-    plt.plot(samples, samples, 'k--', zorder=11, label='Standard normal distribution')
-    plt.plot(samples, probplot[1][0] * samples + probplot[1][1], zorder=10, label='Least squares fit, r=' + str(np.around(probplot[1][2], 3)), marker='', ls='-')
-
+    plt.plot(
+        samples, samples, 'k--', label='Standard normal distribution')
+    plt.plot(
+        samples, probplot[1][0] * samples + probplot[1][1],
+        label='Least squares fit, r=' + str(np.around(probplot[1][2], 3)),
+        marker='', ls='-')
     plt.xlabel('Theoretical quantiles')
     plt.ylabel('Ordered Values')
     plt.legend(title=title)
-    plt.draw()
+
+    # Save the figure.
+    if save is not None:
+        if isinstance(save, str):
+            if len(title) > 0:
+                fig.savefig(f"{save}-{title}", bbox_inches="tight")
+            else:
+                fig.savefig(save, bbox_inches="tight")
+        else:
+            raise Exception("'save' has to be a string.")
+    # Close figure.
+    plt.close()
 
 
-def residual_plot(x, y, func, fit_res, title=""):
-    """Generates a plot which compares the fit to the data and displays the corresponding residuals
+def residual_plot(x, y, func, fit_res, title="", save=None, xlabel=None):
+    """
+    Plot the fit, the data and the residuals.
 
     For uncorrelated data the residuals are expected to be distributed ~N(0,1).
+
+    Parameters
+    ----------
+    x : 1d array
+        Independent variables for the x-axis.
+    y : 1d array of Obs
+        Fitted data points.
+    func : callable
+        Fit function with arguments (fit_res, x).
+    fit_res : Fit_result.fit_parameters instance
+        Fit results.
+    title : str, optional
+        Key name (for combined fits). Default is ''.
+    save : str, optional
+        Path name to save the plot. Include the extension. Default is None.
+    xlabel : str, optional
+        Label for the x-axis.
 
     Returns
     -------
     None
+
     """
+    # x-axes coordinates.
     sorted_x = sorted(x)
     xstart = sorted_x[0] - 0.5 * (sorted_x[1] - sorted_x[0])
     xstop = sorted_x[-1] + 0.5 * (sorted_x[-1] - sorted_x[-2])
     x_samples = np.arange(xstart, xstop + 0.01, 0.01)
+    # Residuals.
+    residuals = ((np.asarray([o.value for o in y])
+                 - func([o.value for o in fit_res], np.asarray(x)))
+                 / np.asarray([o.dvalue for o in y]))
 
-    plt.figure(figsize=(8, 8 / 1.618))
+    fig = plt.figure()
+    # Create two subplots with different heights.
     gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1], wspace=0.0, hspace=0.0)
+    # Upper (larger) subplot: comparison between fit and data.
     ax0 = plt.subplot(gs[0])
-    ax0.errorbar(x, [o.value for o in y], yerr=[o.dvalue for o in y], ls='none', fmt='o', capsize=3, markersize=5, label='Data')
-    ax0.plot(x_samples, func([o.value for o in fit_res], x_samples), label='Fit', zorder=10, ls='-', ms=0)
+    ax0.errorbar(
+        x, [o.value for o in y], yerr=[o.dvalue for o in y],
+        ls='none', fmt='o', capsize=3, markersize=5, label='Data')
+    ax0.plot(
+        x_samples, func([o.value for o in fit_res], x_samples),
+        label='Fit', ls='-', ms=0)
+    # Do not plot ticks in the x-axis.
     ax0.set_xticklabels([])
     ax0.set_xlim([xstart, xstop])
-    ax0.set_xticklabels([])
     ax0.legend(title=title)
 
-    residuals = (np.asarray([o.value for o in y]) - func([o.value for o in fit_res], np.asarray(x))) / np.asarray([o.dvalue for o in y])
+    # Lower (smaller) subplot: residuals.
     ax1 = plt.subplot(gs[1])
     ax1.plot(x, residuals, 'ko', ls='none', markersize=5)
     ax1.tick_params(direction='out')
@@ -739,8 +793,20 @@ def residual_plot(x, y, func, fit_res, title=""):
     ax1.fill_between(x_samples, -1.0, 1.0, alpha=0.1, facecolor='k')
     ax1.set_xlim([xstart, xstop])
     ax1.set_ylabel('Residuals')
-    plt.subplots_adjust(wspace=None, hspace=None)
-    plt.draw()
+    if xlabel:
+        ax1.set_xlabel(xlabel)
+
+    # Save plot.
+    if save is not None:
+        if isinstance(save, str):
+            if len(title) > 0:
+                fig.savefig(f"{save}-{title}.png", bbox_inches="tight")
+            else:
+                fig.savefig(save, bbox_inches="tight")
+        else:
+            raise Exception("'save' has to be a string.")
+    # Close the figure.
+    plt.close()
 
 
 def error_band(x, func, beta):
