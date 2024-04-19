@@ -730,7 +730,8 @@ def qqplot(x, o_y, func, p, title="", save=None):
     plt.close()
 
 
-def residual_plot(x, y, func, fit_res, title="", save=None, xlabel=None):
+def residual_plot(x, y, func, fit_res, title="", save=None, xlabel=None,
+                  ylabel=None):
     """
     Plot the fit, the data and the residuals.
 
@@ -747,11 +748,13 @@ def residual_plot(x, y, func, fit_res, title="", save=None, xlabel=None):
     fit_res : Fit_result.fit_parameters instance
         Fit results.
     title : str, optional
-        Key name (for combined fits). Default is ''.
+        Legend title. Default is ''.
     save : str, optional
         Path name to save the plot. Include the extension. Default is None.
     xlabel : str, optional
-        Label for the x-axis.
+        Label for the x-axis (residuals subplot).
+    ylabel : str, optional
+        Label for the y-axis (data and fit subplot).
 
     Returns
     -------
@@ -782,6 +785,7 @@ def residual_plot(x, y, func, fit_res, title="", save=None, xlabel=None):
     # Do not plot ticks in the x-axis.
     ax0.set_xticklabels([])
     ax0.set_xlim([xstart, xstop])
+    ax0.set_ylabel(ylabel)
     ax0.legend(title=title)
 
     # Lower (smaller) subplot: residuals.
@@ -792,17 +796,13 @@ def residual_plot(x, y, func, fit_res, title="", save=None, xlabel=None):
     ax1.axhline(y=0.0, ls='--', color='k', marker=" ")
     ax1.fill_between(x_samples, -1.0, 1.0, alpha=0.1, facecolor='k')
     ax1.set_xlim([xstart, xstop])
-    ax1.set_ylabel('Residuals')
-    if xlabel:
-        ax1.set_xlabel(xlabel)
+    ax1.set_ylabel("Residuals")
+    ax1.set_xlabel(xlabel)
 
     # Save plot.
     if save is not None:
         if isinstance(save, str):
-            if len(title) > 0:
-                fig.savefig(f"{save}-{title}.png", bbox_inches="tight")
-            else:
-                fig.savefig(save, bbox_inches="tight")
+            fig.savefig(save, bbox_inches="tight")
         else:
             raise Exception("'save' has to be a string.")
     # Close the figure.

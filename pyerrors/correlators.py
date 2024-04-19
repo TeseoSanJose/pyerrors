@@ -1011,35 +1011,54 @@ class Corr:
                 raise Exception("'save' has to be a string.")
         plt.close()
 
-
-    def spaghetti_plot(self, logscale=True):
-        """Produces a spaghetti plot of the correlator suited to monitor exceptional configurations.
+    def spaghetti_plot(self, save=None, logscale=True):
+        """
+        Produce a spaghetti plot to monitor exceptional configurations.
 
         Parameters
         ----------
-        logscale : bool
-            Determines whether the scale of the y-axis is logarithmic or standard.
+        save : str, optional
+            Path to save the plot. Default is None.
+        logscale : bool, optional
+            Whether or not the y-axis scale is logarithmic. Default is True.
+
+        Return
+        ------
+        None
+
         """
         if self.N != 1:
             raise Exception("Correlator needs to be projected first.")
 
-        mc_names = list(set([item for sublist in [sum(map(o[0].e_content.get, o[0].mc_names), []) for o in self.content if o is not None] for item in sublist]))
-        x0_vals = [n for (n, o) in zip(np.arange(self.T), self.content) if o is not None]
+        mc_names = list(
+            set([item
+                 for sublist in [
+                         sum(map(o[0].e_content.get, o[0].mc_names), [])
+                         for o in self.content if o is not None]
+                 for item in sublist]))
+        x0_vals = [n for (n, o) in zip(np.arange(self.T), self.content)
+                   if o is not None]
 
         for name in mc_names:
-            data = np.array([o[0].deltas[name] + o[0].r_values[name] for o in self.content if o is not None]).T
+            data = np.array([o[0].deltas[name] + o[0].r_values[name]
+                             for o in self.content if o is not None]).T
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
             for dat in data:
-                ax.plot(x0_vals, dat, ls='-', marker='')
-
+                ax.plot(x0_vals, dat, ls="-", marker="")
             if logscale is True:
-                ax.set_yscale('log')
+                ax.set_yscale("log")
 
-            ax.set_xlabel(r'$x_0 / a$')
+            ax.set_xlabel(r"$x_0 / a$")
             plt.title(name)
-            plt.draw()
+
+            if save is not None:
+                if isinstance(save, str):
+                    fig.savefig(save, bbox_inches="tight")
+                else:
+                    raise Exception("'save' has to be a string.")
+            plt.close()
 
     def dump(self, filename, datatype="json.gz", **kwargs):
         """Dumps the Corr into a file of chosen type
