@@ -220,24 +220,32 @@ class Corr:
         return x_list, y_list, y_err_list
 
     def symmetric(self):
-        """ Symmetrize the correlator around x0=0."""
+        """Symmetrize the correlator around x0=0."""
         if self.N != 1:
-            raise Exception('symmetric cannot be safely applied to multi-dimensional correlators.')
+            raise Exception(
+                "symmetric cannot be safely applied to"
+                " multi-dimensional correlators.")
         if self.T % 2 != 0:
             raise Exception("Can not symmetrize odd T")
 
         if self.content[0] is not None:
-            if np.argmax(np.abs([o[0].value if o is not None else 0 for o in self.content])) != 0:
-                warnings.warn("Correlator does not seem to be symmetric around x0=0.", RuntimeWarning)
+            if np.argmax(
+                    np.abs([o[0].value if o is not None else 0
+                            for o in self.content])) != 0:
+                warnings.warn(
+                    "Correlator does not seem to be symmetric around x0=0.",
+                    RuntimeWarning)
 
         newcontent = [self.content[0]]
         for t in range(1, self.T):
             if (self.content[t] is None) or (self.content[self.T - t] is None):
                 newcontent.append(None)
             else:
-                newcontent.append(0.5 * (self.content[t] + self.content[self.T - t]))
+                newcontent.append(
+                    0.5 * (self.content[t] + self.content[self.T - t]))
         if (all([x is None for x in newcontent])):
-            raise Exception("Corr could not be symmetrized: No redundant values")
+            raise Exception(
+                "Corr could not be symmetrized: No redundant values")
         return Corr(newcontent, prange=self.prange)
 
     def anti_symmetric(self):
@@ -263,7 +271,7 @@ class Corr:
         return Corr(newcontent, prange=self.prange)
 
     def is_matrix_symmetric(self):
-        """Checks whether a correlator matrices is symmetric on every timeslice."""
+        """Check the correlator matrix is symmetric on every timeslice."""
         if self.N == 1:
             raise TypeError("Only works for correlator matrices.")
         for t in range(self.T):
@@ -278,7 +286,7 @@ class Corr:
         return True
 
     def trace(self):
-        """Calculates the per-timeslice trace of a correlator matrix."""
+        """Calculate the trace per time slice of a correlator matrix."""
         if self.N == 1:
             raise ValueError("Only works for correlator matrices.")
         newcontent = []
@@ -290,59 +298,83 @@ class Corr:
         return Corr(newcontent)
 
     def matrix_symmetric(self):
-        """Symmetrizes the correlator matrices on every timeslice."""
+        """Symmetrize the correlator matrix on every timeslice."""
         if self.N == 1:
-            raise Exception("Trying to symmetrize a correlator matrix, that already has N=1.")
+            raise Exception(
+                "Trying to symmetrize a correlator matrix,"
+                " that already has N=1.")
         if self.is_matrix_symmetric():
             return 1.0 * self
         else:
-            transposed = [None if _check_for_none(self, G) else G.T for G in self.content]
+            transposed = [None if _check_for_none(self, G) else G.T
+                          for G in self.content]
             return 0.5 * (Corr(transposed) + self)
 
     def GEVP(self, t0, ts=None, sort="Eigenvalue", vector_obs=False, **kwargs):
-        r'''Solve the generalized eigenvalue problem on the correlator matrix and returns the corresponding eigenvectors.
+        r"""Solve the generalized eigenvalue problem.
 
-        The eigenvectors are sorted according to the descending eigenvalues, the zeroth eigenvector(s) correspond to the
-        largest eigenvalue(s). The eigenvector(s) for the individual states can be accessed via slicing
-        ```python
+        The eigenvectors are sorted according to the descending eigenvalues,
+        the zeroth eigenvector(s) correspond to the largest eigenvalue(s).
+        The eigenvector(s) for the individual states can be accessed via
+        slicing
+        python
         C.GEVP(t0=2)[0]  # Ground state vector(s)
         C.GEVP(t0=2)[:3]  # Vectors for the lowest three states
-        ```
 
         Parameters
         ----------
         t0 : int
-            The time t0 for the right hand side of the GEVP according to $G(t)v_i=\lambda_i G(t_0)v_i$
-        ts : int
+            The time t0 for the right hand side of the GEVP according
+            to $G(t)v_i=\lambda_i G(t_0)v_i$
+        ts : int, optional
             fixed time $G(t_s)v_i=\lambda_i G(t_0)v_i$ if sort=None.
-            If sort="Eigenvector" it gives a reference point for the sorting method.
-        sort : string
-            If this argument is set, a list of self.T vectors per state is returned. If it is set to None, only one vector is returned.
-            - "Eigenvalue": The eigenvector is chosen according to which eigenvalue it belongs individually on every timeslice. (default)
-            - "Eigenvector": Use the method described in arXiv:2004.10472 to find the set of v(t) belonging to the state.
-              The reference state is identified by its eigenvalue at $t=t_s$.
+            If sort="Eigenvector" it gives a reference point for the sorting
+            method. Default is None.
+        sort : string, optional
+            If this argument is set, a list of self.T vectors per state is
+            returned. If it is set to None, only one vector is returned.
+            - Eigenvalue: The eigenvector is chosen according to which
+            eigenvalue it belongs individually on every timeslice. (default)
+            - Eigenvector: Use the method described in arXiv:2004.10472
+            to find the set of v(t) belonging to the state.
+            The reference state is identified by its eigenvalue at $t=t_s$.
             - None: The GEVP is solved only at ts, no sorting is necessary
-        vector_obs : bool
-            If True, uncertainties are propagated in the eigenvector computation (default False).
+            Default is Eigenvalue.
+        vector_obs : bool, optional
+            If True, uncertainties are propagated in the eigenvector
+            computation. Default is False.
 
         Other Parameters
         ----------------
-        state : int
-           Returns only the vector(s) for a specified state. The lowest state is zero.
-        method : str
+        state : int, optional
+           Returns only the vector(s) for a specified state.
+           The lowest state is zero.
+        method : str, optional
            Method used to solve the GEVP.
-           - "eigh": Use scipy.linalg.eigh to solve the GEVP. (default for vector_obs=False)
-           - "cholesky": Use manually implemented solution via the Cholesky decomposition. Automatically chosen if vector_obs==True.
-        '''
+           - eigh: Use scipy.linalg.eigh to solve the GEVP.
+           This is the default for vector_obs=False.
+           - cholesky: Use manually implemented solution via the
+           Cholesky decomposition. Automatically chosen if vector_obs==True.
+
+        """
+        def _get_mat_at_t(t, vector_obs=vector_obs):
+            if vector_obs:
+                return symmetric_corr[t]
+            else:
+                return np.vectorize(lambda x: x.value)(symmetric_corr[t])
 
         if self.N == 1:
-            raise Exception("GEVP methods only works on correlator matrices and not single correlators.")
+            raise Exception(
+                "GEVP methods only works on correlator matrices "
+                "and not single correlators.")
         if ts is not None:
             if (ts <= t0):
                 raise Exception("ts has to be larger than t0.")
 
         if "sorted_list" in kwargs:
-            warnings.warn("Argument 'sorted_list' is deprecated, use 'sort' instead.", DeprecationWarning)
+            warnings.warn(
+                "Argument 'sorted_list' is deprecated, use 'sort' instead.",
+                DeprecationWarning)
             sort = kwargs.get("sorted_list")
 
         if self.is_matrix_symmetric():
@@ -350,11 +382,6 @@ class Corr:
         else:
             symmetric_corr = self.matrix_symmetric()
 
-        def _get_mat_at_t(t, vector_obs=vector_obs):
-            if vector_obs:
-                return symmetric_corr[t]
-            else:
-                return np.vectorize(lambda x: x.value)(symmetric_corr[t])
         G0 = _get_mat_at_t(t0)
 
         method = kwargs.get('method', 'eigh')
@@ -363,7 +390,13 @@ class Corr:
             chol_inv = linalg.inv(chol)
             method = 'cholesky'
         else:
-            chol = np.linalg.cholesky(_get_mat_at_t(t0, vector_obs=False))  # Check if matrix G0 is positive-semidefinite.
+            # Check if matrix G0 is positive-semidefinite.
+            g0_test = _get_mat_at_t(t0, vector_obs=False)
+            test1 = np.all(g0_test == g0_test.T.conj())
+            test2 = np.all(np.linalg.eigh(g0_test)[0] >= 0.0)
+            if not test1 or not test2:
+                raise Exception("Matrix G0 is not positive semidefinite")
+            chol = np.linalg.cholesky(g0_test)
             if method == 'cholesky':
                 chol_inv = np.linalg.inv(chol)
             else:
@@ -375,30 +408,41 @@ class Corr:
             if (self.content[t0] is None) or (self.content[ts] is None):
                 raise Exception("Corr not defined at t0/ts.")
             Gt = _get_mat_at_t(ts)
-            reordered_vecs = _GEVP_solver(Gt, G0, method=method, chol_inv=chol_inv)
+            reordered_vecs = _GEVP_solver(
+                Gt, G0, method=method, chol_inv=chol_inv)
             if kwargs.get('auto_gamma', False) and vector_obs:
-                [[o.gm() for o in ev if isinstance(o, Obs)] for ev in reordered_vecs]
+                [[o.gm() for o in ev if isinstance(o, Obs)]
+                 for ev in reordered_vecs]
 
         elif sort in ["Eigenvalue", "Eigenvector"]:
             if sort == "Eigenvalue" and ts is not None:
-                warnings.warn("ts has no effect when sorting by eigenvalue is chosen.", RuntimeWarning)
+                warnings.warn(
+                    "ts has no effect when sorting by eigenvalue is chosen.",
+                    RuntimeWarning)
             all_vecs = [None] * (t0 + 1)
             for t in range(t0 + 1, self.T):
                 try:
                     Gt = _get_mat_at_t(t)
-                    all_vecs.append(_GEVP_solver(Gt, G0, method=method, chol_inv=chol_inv))
+                    all_vecs.append(
+                        _GEVP_solver(Gt, G0, method=method, chol_inv=chol_inv))
                 except Exception:
                     all_vecs.append(None)
             if sort == "Eigenvector":
                 if ts is None:
-                    raise Exception("ts is required for the Eigenvector sorting method.")
+                    raise Exception(
+                        "ts is required for the Eigenvector sorting method.")
                 all_vecs = _sort_vectors(all_vecs, ts)
 
-            reordered_vecs = [[v[s] if v is not None else None for v in all_vecs] for s in range(self.N)]
+            reordered_vecs = [[v[s] if v is not None else None
+                               for v in all_vecs] for s in range(self.N)]
             if kwargs.get('auto_gamma', False) and vector_obs:
-                [[[o.gm() for o in evn] for evn in ev if evn is not None] for ev in reordered_vecs]
+                [[[o.gm() for o in evn] for evn in ev if evn is not None]
+                 for ev in reordered_vecs]
+
         else:
-            raise Exception("Unknown value for 'sort'. Choose 'Eigenvalue', 'Eigenvector' or None.")
+            raise Exception(
+                "Unknown value for 'sort'. Choose 'Eigenvalue', "
+                "'Eigenvector' or None.")
 
         if "state" in kwargs:
             return reordered_vecs[kwargs.get("state")]
@@ -1485,18 +1529,19 @@ def _sort_vectors(vec_set_in, ts):
 
 
 def _check_for_none(corr, entry):
-    """Checks if entry for correlator corr is None"""
+    """Check if entry for correlator corr is None."""
     return len(list(filter(None, np.asarray(entry).flatten()))) < corr.N ** 2
 
 
 def _GEVP_solver(Gt, G0, method='eigh', chol_inv=None):
-    r"""Helper function for solving the GEVP and sorting the eigenvectors.
+    r"""Help to solve the GEVP and sort the eigenvectors.
 
-    Solves $G(t)v_i=\lambda_i G(t_0)v_i$ and returns the eigenvectors v_i
+    Solves $G(t)v_i=\lambda_i G(t_0)v_i$ and returns the eigenvectors v_i.
 
     The helper function assumes that both provided matrices are symmetric and
-    only processes the lower triangular part of both matrices. In case the matrices
-    are not symmetric the upper triangular parts are effectively discarded.
+    only processes the lower triangular part of both matrices.
+    In case the matrices are not symmetric the upper triangular
+    parts are effectively discarded.
 
     Parameters
     ----------
@@ -1506,7 +1551,8 @@ def _GEVP_solver(Gt, G0, method='eigh', chol_inv=None):
         The correlator at time t0 for the right hand side of the GEVP
     Method used to solve the GEVP.
        - "eigh": Use scipy.linalg.eigh to solve the GEVP.
-       - "cholesky": Use manually implemented solution via the Cholesky decomposition.
+       - "cholesky": Use manually implemented solution via the Cholesky
+       decomposition.
     chol_inv : array, optional
         Inverse of the Cholesky decomposition of G0. May be provided to
         speed up the computation in the case of method=='cholesky'
@@ -1524,18 +1570,20 @@ def _GEVP_solver(Gt, G0, method='eigh', chol_inv=None):
             eigv = linalg.eigv
             matmul = linalg.matmul
         else:
-            cholesky = np.linalg.cholesky
-            inv = np.linalg.inv
-
             def eigv(x, **kwargs):
                 return np.linalg.eigh(x)[1]
 
             def matmul(*operands):
                 return np.linalg.multi_dot(operands)
+
+            cholesky = np.linalg.cholesky
+            inv = np.linalg.inv
+
         N = Gt.shape[0]
         output = [[] for j in range(N)]
         if chol_inv is None:
-            chol = cholesky(G0)  # This will automatically report if the matrix is not pos-def
+            # This will automatically report if the matrix is not pos-def
+            chol = cholesky(G0)
             chol_inv = inv(chol)
 
         try:
@@ -1543,9 +1591,12 @@ def _GEVP_solver(Gt, G0, method='eigh', chol_inv=None):
             ev = eigv(new_matrix)
             ev = matmul(chol_inv.T, ev)
             output = np.flip(ev, axis=1).T
-        except (np.linalg.LinAlgError, TypeError, ValueError):  # The above code can fail because of linalg-errors or because the entry of the corr is None
+        except (np.linalg.LinAlgError, TypeError, ValueError):
+            # The above code can fail because of linalg-errors
+            # or because the entry of the corr is None.
             for s in range(N):
                 output[s] = None
         return output
+
     elif method == 'eigh':
         return scipy.linalg.eigh(Gt, G0, lower=True)[1].T[::-1]

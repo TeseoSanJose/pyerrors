@@ -233,8 +233,8 @@ def _scalar_mat_op(op, obs, **kwargs):
 
 
 def _mat_mat_op(op, obs, **kwargs):
-    """Computes the matrix to matrix operation op to a given matrix of Obs."""
-    # Use real representation to calculate matrix operations for complex matrices
+    """Compute the matrix to matrix operation op to a given matrix of Obs."""
+    # Use real representation for matrix operations on complex matrices.
     if any(isinstance(o, CObs) for o in obs.ravel()):
         A = np.empty_like(obs)
         B = np.empty_like(obs)
@@ -246,7 +246,8 @@ def _mat_mat_op(op, obs, **kwargs):
                 A[n, m] = entry
                 B[n, m] = 0.0
         big_matrix = np.block([[A, -B], [B, A]])
-        op_big_matrix = derived_observable(lambda x, **kwargs: op(x), [big_matrix], array_mode=True)[0]
+        op_big_matrix = derived_observable(
+            lambda x, **kwargs: op(x), [big_matrix], array_mode=True)[0]
         dim = op_big_matrix.shape[0]
         op_A = op_big_matrix[0: dim // 2, 0: dim // 2]
         op_B = op_big_matrix[dim // 2:, 0: dim // 2]
@@ -255,7 +256,8 @@ def _mat_mat_op(op, obs, **kwargs):
             res[n, m] = CObs(op_A[n, m], op_B[n, m])
         return res
     else:
-        return derived_observable(lambda x, **kwargs: op(x), [obs], array_mode=True)[0]
+        return derived_observable(
+            lambda x, **kwargs: op(x), [obs], array_mode=True)[0]
 
 
 def eigh(obs, **kwargs):
