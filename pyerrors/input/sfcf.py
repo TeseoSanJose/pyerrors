@@ -307,7 +307,6 @@ def read_sfcf_multi(path, prefix, name_list, quarks_list=['.*'], corr_type_list=
                         cfg_path = path + '/' + item + '/' + subitem
                         file_data = _read_o_file(cfg_path, name, needed_keys, intern, version, im)
                         rep_data.append(file_data)
-                    print(rep_data)
                     for t in range(intern[name]["T"]):
                         internal_ret_dict[key][t].append([])
                         for cfg in range(no_cfg):
@@ -363,6 +362,7 @@ def read_sfcf_multi(path, prefix, name_list, quarks_list=['.*'], corr_type_list=
     result_dict = {}
     if keyed_out:
         for key in needed_keys:
+            name = _key2specs(key)[0]
             result = []
             for t in range(intern[name]["T"]):
                 result.append(Obs(internal_ret_dict[key][t], new_names, idl=idl))
