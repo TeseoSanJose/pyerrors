@@ -681,35 +681,117 @@ def total_least_squares(x, y, func, silent=False, **kwargs):
     return output
 
 
-def fit_lin(x, y, **kwargs):
-    """Performs a linear fit to y = n + m * x and returns two Obs n, m.
+def fit_lin(x, y, order, **kwargs):
+    """Perform a linear fit to y = n + m * x + ...
 
     Parameters
     ----------
-    x : list
-        Can either be a list of floats in which case no xerror is assumed, or
-        a list of Obs, where the dvalues of the Obs are used as xerror for the fit.
-    y : list
-        List of Obs, the dvalues of the Obs are used as yerror for the fit.
+    x : list of floats
+        Independent variables.
+    y : list of Obs
+        Dependent variables.
+    order : int
+        Order of the polynomial.
 
     Returns
     -------
-    fit_parameters : list[Obs]
-        LIist of fitted observables.
+    output : Fit_result
+        Parameters and information of the fit.
     """
+    class Polynomial:
+        """Compute polynomial of given order."""
 
-    def f(a, x):
-        y = a[0] + a[1] * x
-        return y
+        def __init__(self, order):
+            """Give polynomial order."""
+            self.order = order
 
-    if all(isinstance(n, Obs) for n in x):
-        out = total_least_squares(x, y, f, **kwargs)
-        return out.fit_parameters
-    elif all(isinstance(n, float) or isinstance(n, int) for n in x) or isinstance(x, np.ndarray):
-        out = least_squares(x, y, f, **kwargs)
-        return out.fit_parameters
+        def __call__(self, p, x):
+            """Evaluate the polynomial."""
+            poly = .0
+            for o in range(0, self.order+1):
+                poly = poly + p[o]*x**o
+            return poly
+
+    class ChiSquare:
+        """Compute a correlated chi-square."""
+
+        def __init__(self, icov, model, x, y):
+            """Initialize the chi-square."""
+            self.icov = icov
+            self.model = model
+            self.x = x
+            self.y = y
+
+        def __call__(self, p):
+            """Evaluate the chi-square."""
+            res = self.y - self.model(p, x)
+            return res.T @ self.icov @ res
+
+    def inverse(matrix):
+        """Invert symmetric and real matrix using Cholesky."""
+        low = anp.linalg.cholesky(cov)
+        inv = anp.inv(low)
+        return inv.T @ inv
+
+    if kwargs.get('num_grad') is True:
+        jacobian = num_jacobian
+        hessian = num_hessian
     else:
-        raise TypeError('Unsupported types for x')
+        jacobian = auto_jacobian
+        hessian = auto_hessian
+
+    output = Fit_result()
+    output.fit_function = Polynomial(order)
+    # (N x order) matrix with powers of x.
+    fun = anp.array([x**n for n in range(0, order+1)]).T
+    cov = covariance(y)
+    chisquare = ChiSquare(inverse(cov), output.fit_function)
+    a = fun.T @ cov @ fun
+    b = fun.T @ cov @ y
+    # Optimal solution.
+    p = inverse(a) @ b
+    output.chisquare = chisquare(p, x, y)
+    output.dof = len(y) - order - 1
+    output.p_value = 1 - scipy.stats.chi2.cdf(output.chisquare, output.dof)
+    if output.dof > 0:
+        output.chisquare_by_dof = output.chisquare / output.dof
+    else:
+        output.chisquare_by_dof = float("nan")
+    output.message = "Optimization with linear algebra"
+
+    try:
+        hess = hessian(chisquare)(p)
+    except TypeError:
+        raise Exception("Use autograd.numpy!") from None
+
+    len_y = len(y_f)
+
+    def chisqfunc_compact(d):
+        return anp.sum(
+            general_chisqfunc(
+                d[:n_parms],
+                d[n_parms: n_parms + len_y],
+                d[n_parms + len_y:])
+            ** 2)
+
+    jac_jac_y = hessian(chisqfunc_compact)(np.concatenate((fitp, y_f, p_f)))
+
+    # Compute hess^{-1} @ jac_jac_y[:n_parms + m, n_parms + m:] using LAPACK dgesv
+    try:
+        deriv_y = -scipy.linalg.solve(hess, jac_jac_y[:n_parms, n_parms:])
+    except np.linalg.LinAlgError:
+        raise Exception("Cannot invert hessian matrix.")
+
+    result = []
+    for i in range(order):
+        result.append(
+            derived_observable(
+                lambda x_all, **kwargs:
+                (x_all[0] + np.finfo(np.float64).eps) / (y_all[0].value + np.finfo(np.float64).eps) * fitp[i],
+                list(y_all) + loc_priors,
+                man_grad=list(deriv_y[i])))
+
+    output.fit_parameters = result
 
 
 def qqplot(x, o_y, func, p, title="", save=None):
@@ -799,11 +881,13 @@ def residual_plot(x, y, func, fit_res, title="", save=None, xlabel=None,
     sorted_x = sorted(x)
     xstart = sorted_x[0] - 0.5 * (sorted_x[1] - sorted_x[0])
     xstop = sorted_x[-1] + 0.5 * (sorted_x[-1] - sorted_x[-2])
-    x_samples = np.arange(xstart, xstop + 0.01, 0.01)
+    x_ticks = np.arange(xstart, xstop + 0.01, 0.01)
     # Residuals.
     residuals = ((np.asarray([o.value for o in y])
                  - func([o.value for o in fit_res], np.asarray(x)))
                  / np.asarray([o.dvalue for o in y]))
+
+    cmap = plt.get_cmap(plt.rcParams["image.cmap"], 10)
 
     fig = plt.figure()
     # Create two subplots with different heights.
@@ -813,10 +897,13 @@ def residual_plot(x, y, func, fit_res, title="", save=None, xlabel=None,
     ax0 = plt.subplot(gs[0])
     ax0.errorbar(
         x, [o.value for o in y], yerr=[o.dvalue for o in y],
-        ls='none', fmt='o', capsize=3, markersize=5, label="Data")
+        # ls='none', fmt='o', capsize=3, markersize=5,
+        c=cmap(0), label="Data")
     ax0.plot(
-        x_samples, func([o.value for o in fit_res], x_samples),
-        label="Fit", ls='-', ms=0)
+        x_ticks, func([o.value for o in fit_res], x_ticks),
+        ls="-", marker="none", c=cmap(0), label="Fit",
+        # ls='-', ms=0
+        )
 
     if "vlines" in kwargs:
         for i in kwargs["vlines"]:
@@ -830,11 +917,13 @@ def residual_plot(x, y, func, fit_res, title="", save=None, xlabel=None,
 
     # Lower (smaller) subplot: residuals.
     ax1 = plt.subplot(gs[1])
-    ax1.plot(x, residuals, 'ko', ls='none', markersize=5)
+    # ax1.plot(x, residuals, 'ko', ls='none', markersize=5)
+    ax1.plot(x, residuals, "o", c=cmap(0))
     ax1.tick_params(axis="x", bottom=True, top=True, labelbottom=True)
     ax1.axhline(y=0.0, ls='--', color='k', marker=" ")
-    ax1.fill_between(x_samples, -1.0, 1.0, alpha=0.1, facecolor='k')
+    ax1.fill_between(x_ticks, -1.0, 1.0, alpha=0.1, facecolor='k')
     ax1.set_xlim([xstart, xstop])
+    ax1.set_ylim([-1.5, 1.5])
     ax1.set_ylabel("Residuals")
     ax1.set_xlabel(xlabel)
 
